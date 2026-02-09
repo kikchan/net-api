@@ -23,7 +23,7 @@ Ensure your Linux environment has the necessary tools:
 
 1. **Install flask**:
    ```bash
-    pip install psutil
+    pip install psutil flask
    ````
 
 1. **Run the app**:
