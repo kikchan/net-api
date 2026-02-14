@@ -42,6 +42,7 @@ INTERFACE = detect_interface()
 # ==============================
 down_hist = deque(maxlen=MAX_POINTS)
 up_hist = deque(maxlen=MAX_POINTS)
+time_hist = deque(maxlen=MAX_POINTS)
 
 last = psutil.net_io_counters(pernic=True)[INTERFACE]
 
@@ -66,6 +67,18 @@ def get_speed():
 
 
 # ==============================
+# SEND FULL HISTORY ON CONNECT
+# ==============================
+@socketio.on("connect")
+def send_history():
+    socketio.emit("history", {
+        "times": list(time_hist),
+        "down": list(down_hist),
+        "up": list(up_hist)
+    })
+
+
+# ==============================
 # BACKGROUND STREAM LOOP
 # ==============================
 def background_thread():
@@ -75,6 +88,7 @@ def background_thread():
 
         down_hist.append(down)
         up_hist.append(up)
+        time_hist.append(now)
 
         socketio.emit("net_update", {
             "down": down,
@@ -225,11 +239,18 @@ const chart = new Chart(ctx, {{
 
 
 // ==============================
-// WEBSOCKET
+// SOCKET
 // ==============================
 const socket = io();
 
-socket.on('net_update', (data) => {{
+socket.on("history", data => {{
+    labels.push(...data.times);
+    downData.push(...data.down);
+    upData.push(...data.up);
+    chart.update();
+}});
+
+socket.on("net_update", (data) => {{
 
     labels.push(data.time);
     downData.push(data.down);
