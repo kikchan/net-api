@@ -94,8 +94,8 @@ def background_thread():
             "down": down,
             "up": up,
             "time": now,
-            "peak_down": max(down_hist),
-            "peak_up": max(up_hist),
+            "peak_down": max(down_hist) if down_hist else 0,
+            "peak_up": max(up_hist) if up_hist else 0,
         })
 
         socketio.sleep(REFRESH_SECONDS)
@@ -132,18 +132,19 @@ canvas {{
     height:260px !important;
 }}
 
-/* Hover overlay */
+/* Smart Hover overlay */
 .overlay {{
-    position: absolute;
+    position: fixed;
     pointer-events: none;
-    background: rgba(20,20,20,0.9);
-    border: 1px solid rgba(255,255,255,0.1);
-    padding: 6px 10px;
-    border-radius: 8px;
+    background: #141414;
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 8px 12px;
+    border-radius: 10px;
     font-size: 12px;
     color: #fff;
     display: none;
     backdrop-filter: blur(6px);
+    z-index: 9999;
 }}
 </style>
 
@@ -170,10 +171,9 @@ const downData = [];
 const upData = [];
 
 const overlay = document.getElementById("overlay");
+const canvas = document.getElementById('chart');
 
-const ctx = document.getElementById('chart');
-
-const chart = new Chart(ctx, {{
+const chart = new Chart(canvas, {{
   type: 'line',
   data: {{
     labels: labels,
@@ -217,14 +217,34 @@ const chart = new Chart(ctx, {{
 
         const i = elements[0].index;
 
-        overlay.style.display = "block";
-        overlay.style.left = (e.x + 15) + "px";
-        overlay.style.top = (e.y + 15) + "px";
-
         overlay.innerHTML =
             `Time: ${{labels[i]}}<br>` +
             `↓ ${{downData[i]}} Mbps<br>` +
             `↑ ${{upData[i]}} Mbps`;
+
+        overlay.style.display = "block";
+
+        const padding = 14;
+        const mouseX = e.native.clientX;
+        const mouseY = e.native.clientY;
+
+        const rect = overlay.getBoundingClientRect();
+        const overlayWidth = rect.width;
+        const overlayHeight = rect.height;
+
+        let left = mouseX + padding;
+        let top  = mouseY + padding;
+
+        if (left + overlayWidth > window.innerWidth) {{
+            left = mouseX - overlayWidth - padding;
+        }}
+
+        if (top + overlayHeight > window.innerHeight) {{
+            top = mouseY - overlayHeight - padding;
+        }}
+
+        overlay.style.left = left + "px";
+        overlay.style.top  = top + "px";
     }},
     scales: {{
       x: {{
@@ -235,6 +255,11 @@ const chart = new Chart(ctx, {{
       }}
     }}
   }}
+}});
+
+// Hide overlay when leaving chart
+canvas.addEventListener("mouseleave", () => {{
+    overlay.style.display = "none";
 }});
 
 
