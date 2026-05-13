@@ -24,17 +24,9 @@ COLOR_UP = "#ffcc00"
 
 
 # ==============================
-# AUTO DETECT INTERFACE
+# INTERFACE
 # ==============================
-def detect_interface():
-    stats = psutil.net_if_stats()
-    for name, s in stats.items():
-        if s.isup and not name.startswith(("lo", "docker", "veth", "br-", "tun")):
-            return name
-    return list(stats.keys())[0]
-
-
-INTERFACE = detect_interface()
+INTERFACE = "ens2"
 
 
 # ==============================
@@ -84,7 +76,7 @@ def send_history():
 def background_thread():
     while True:
         down, up = get_speed()
-        now = datetime.datetime.now().strftime("%H:%M")
+        now = datetime.datetime.now().strftime("%H:%M:%S")
 
         down_hist.append(down)
         up_hist.append(up)
@@ -127,12 +119,24 @@ body {{
     line-height: 1.4em;
 }}
 
+.subtitle {{
+    text-align:center;
+    font-size:11px;
+    opacity:0.7;
+    margin-bottom:10px;
+}}
+
+#current-stats {{
+    display: inline-block;
+    font-weight: 700;
+    color: #fff;
+}}
+
 canvas {{
     width:100% !important;
     height:260px !important;
 }}
 
-/* Smart Hover overlay */
 .overlay {{
     position: fixed;
     pointer-events: none;
@@ -153,7 +157,11 @@ canvas {{
 
 <div class="header" id="stats">
 Interface: {INTERFACE}<br>
-Waiting for data...
+<span id="current-stats">Waiting for data...</span>
+</div>
+
+<div class="subtitle">
+Network Activity over past {HISTORY_MINUTES} minutes
 </div>
 
 <div id="overlay" class="overlay"></div>
@@ -171,95 +179,114 @@ const downData = [];
 const upData = [];
 
 const overlay = document.getElementById("overlay");
-const canvas = document.getElementById('chart');
+const canvas = document.getElementById("chart");
 
 const chart = new Chart(canvas, {{
-  type: 'line',
-  data: {{
-    labels: labels,
-    datasets: [
-      {{
-        label: 'Download',
-        data: downData,
-        borderColor: '{COLOR_DOWN}',
-        backgroundColor: '{COLOR_DOWN}22',
-        fill: true,
-        tension: 0.35,
-        pointRadius: 0
-      }},
-      {{
-        label: 'Upload',
-        data: upData,
-        borderColor: '{COLOR_UP}',
-        backgroundColor: '{COLOR_UP}22',
-        fill: true,
-        tension: 0.35,
-        pointRadius: 0
-      }}
-    ]
-  }},
-  options: {{
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    interaction: {{
-      mode: 'index',
-      intersect: false
+    type: "line",
+    data: {{
+        labels: labels,
+        datasets: [
+            {{
+                label: "Download",
+                data: downData,
+                borderColor: "{COLOR_DOWN}",
+                backgroundColor: "{COLOR_DOWN}22",
+                fill: true,
+                tension: 0.35,
+                pointRadius: 0
+            }},
+            {{
+                label: "Upload",
+                data: upData,
+                borderColor: "{COLOR_UP}",
+                backgroundColor: "{COLOR_UP}22",
+                fill: true,
+                tension: 0.35,
+                pointRadius: 0
+            }}
+        ]
     }},
-    plugins: {{
-      tooltip: {{ enabled: false }}
-    }},
-    onHover: (e, elements) => {{
-        if (!elements.length) {{
-            overlay.style.display = "none";
-            return;
+    options: {{
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+
+        interaction: {{
+            mode: "index",
+            intersect: false
+        }},
+
+        plugins: {{
+            legend: {{
+                position: "top",
+                labels: {{
+                    color: "#ddd"
+                }}
+            }},
+            tooltip: {{
+                enabled: false
+            }}
+        }},
+
+        onHover: (e, elements) => {{
+            if (!elements.length) {{
+                overlay.style.display = "none";
+                return;
+            }}
+
+            const i = elements[0].index;
+
+            overlay.innerHTML =
+                `Time: ${{labels[i]}}<br>` +
+                `↓ ${{downData[i]}} Mbps<br>` +
+                `↑ ${{upData[i]}} Mbps`;
+
+            overlay.style.display = "block";
+
+            const padding = 14;
+
+            const mouseX = e.native.clientX;
+            const mouseY = e.native.clientY;
+
+            const rect = overlay.getBoundingClientRect();
+
+            let left = mouseX + padding;
+            let top = mouseY + padding;
+
+            if (left + rect.width > window.innerWidth) {{
+                left = mouseX - rect.width - padding;
+            }}
+
+            if (top + rect.height > window.innerHeight) {{
+                top = mouseY - rect.height - padding;
+            }}
+
+            overlay.style.left = left + "px";
+            overlay.style.top = top + "px";
+        }},
+
+        scales: {{
+            x: {{
+                ticks: {{
+                    maxTicksLimit: 8,
+                    color: "#bbb"
+                }},
+                grid: {{
+                    color: "rgba(255,255,255,0.08)"
+                }}
+            }},
+
+            y: {{
+                beginAtZero: true,
+                ticks: {{
+                    color: "#bbb"
+                }},
+                grid: {{
+                    color: "rgba(255,255,255,0.08)"
+                }}
+            }}
         }}
-
-        const i = elements[0].index;
-
-        overlay.innerHTML =
-            `Time: ${{labels[i]}}<br>` +
-            `↓ ${{downData[i]}} Mbps<br>` +
-            `↑ ${{upData[i]}} Mbps`;
-
-        overlay.style.display = "block";
-
-        const padding = 14;
-        const mouseX = e.native.clientX;
-        const mouseY = e.native.clientY;
-
-        const rect = overlay.getBoundingClientRect();
-        const overlayWidth = rect.width;
-        const overlayHeight = rect.height;
-
-        let left = mouseX + padding;
-        let top  = mouseY + padding;
-
-        if (left + overlayWidth > window.innerWidth) {{
-            left = mouseX - overlayWidth - padding;
-        }}
-
-        if (top + overlayHeight > window.innerHeight) {{
-            top = mouseY - overlayHeight - padding;
-        }}
-
-        overlay.style.left = left + "px";
-        overlay.style.top  = top + "px";
-    }},
-    scales: {{
-      x: {{
-        ticks: {{ maxTicksLimit: 8 }}
-      }},
-      y: {{
-        beginAtZero: true
-      }}
     }}
-  }}
-}});
-
-// Hide overlay when leaving chart
-canvas.addEventListener("mouseleave", () => {{
-    overlay.style.display = "none";
 }});
 
 
@@ -272,10 +299,11 @@ socket.on("history", data => {{
     labels.push(...data.times);
     downData.push(...data.down);
     upData.push(...data.up);
+
     chart.update();
 }});
 
-socket.on("net_update", (data) => {{
+socket.on("net_update", data => {{
 
     labels.push(data.time);
     downData.push(data.down);
@@ -289,7 +317,10 @@ socket.on("net_update", (data) => {{
 
     document.getElementById("stats").innerHTML =
         `Interface: {INTERFACE}<br>` +
-        `↓ ${{data.down}} Mbps (peak ${{data.peak_down}}) &nbsp;&nbsp; ↑ ${{data.up}} Mbps (peak ${{data.peak_up}})`;
+        `<span id="current-stats">` +
+        `↓ ${{data.down}} Mbps (peak ${{data.peak_down}}) · ` +
+        `↑ ${{data.up}} Mbps (peak ${{data.peak_up}})` +
+        `</span>`;
 
     chart.update();
 }});
@@ -304,8 +335,12 @@ socket.on("net_update", (data) => {{
 # MAIN
 # ==============================
 if __name__ == "__main__":
+
     socketio.start_background_task(background_thread)
 
-    print(f"Starting network monitor on http://0.0.0.0:2016  (iface={INTERFACE})")
+    print(
+        f"Starting network monitor on "
+        f"http://0.0.0.0:2016 (iface={INTERFACE})"
+    )
 
     socketio.run(app, host="0.0.0.0", port=2016)
